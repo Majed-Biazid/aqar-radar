@@ -144,11 +144,16 @@ export default function Home() {
     return counts;
   }, [data]);
 
+  // savedOnly is only meaningful when there are actually saved listings —
+  // otherwise the filter would empty the page with no UI to undo it (the
+  // saved chip in the stats row only renders when saved.count > 0).
+  const effectiveSavedOnly = savedOnly && saved.count > 0;
+
   const visibleListings = useMemo(() => {
     if (!data) return [];
     const q = filters.query.trim().toLowerCase();
     let rows = data.listings;
-    if (savedOnly) {
+    if (effectiveSavedOnly) {
       const set = new Set(saved.ids);
       rows = rows.filter((l) => set.has(l.id));
     }
@@ -196,7 +201,7 @@ export default function Home() {
     }
     sorted.sort((a, b) => (a.status === "gone" ? 1 : 0) - (b.status === "gone" ? 1 : 0));
     return sorted;
-  }, [data, filters.sort, filters.query, savedOnly, saved.ids]);
+  }, [data, filters.sort, filters.query, effectiveSavedOnly, saved.ids]);
 
   const lastRefreshed = data?.latestRun?.finished_at || data?.latestRun?.started_at;
   const lastRefreshedHuman = lastRefreshed ? timeAgo(lastRefreshed) : "—";
