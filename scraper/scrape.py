@@ -65,37 +65,44 @@ _FALSE_POSITIVE_REGEX = re.compile(
     "|".join(_FALSE_POSITIVE_PATTERNS), re.UNICODE | re.IGNORECASE
 )
 
-# Patterns that indicate the apartment age is "new" (≤ ~2 years).
-# These are checked AFTER false-positive phrases are stripped, so a bare
-# "جديد" anywhere else (e.g. "للإيجار جديد", "شقق جديدة") still counts.
-_NEW_PATTERNS = [
+# Named patterns (label → regex) so we can record which signal matched
+# in the is_new_reason audit column. Order matters — first match wins,
+# so high-confidence signals come first.
+_NAMED_NEW_PATTERNS = [
     # high-confidence Arabic signals
-    r"عمر\s*العقار\s*[:\-]?\s*جديد",
-    r"تحت\s*الإنش?اء",                # under construction
-    r"تحت\s*التشطيب",                  # under (final) finishing
-    r"حديث\s*(?:البناء|الإنش?اء)",     # newly built
-    r"حديثة?\s*البناء",
-    r"على\s*العظم",                    # shell-only
+    ("property_age_new",   r"عمر\s*العقار\s*[:\-]?\s*جديد"),
+    ("under_construction", r"تحت\s*الإنش?اء"),
+    ("under_finishing",    r"تحت\s*التشطيب"),
+    ("newly_built_ar",     r"حديث\s*(?:البناء|الإنش?اء)"),
+    ("newly_built_ar2",    r"حديثة?\s*البناء"),
+    ("shell_only",         r"على\s*العظم"),
 
     # bare "جديد" — kept generic since false positives are stripped above
-    r"جديد(?:ة|ه|ا)?",
+    ("jadeed_bare",        r"جديد(?:ة|ه|ا)?"),
 
     # numeric ages 0–2 (Arabic + Eastern Arabic digits)
-    r"أقل\s*من\s*[12]\s*(?:سن|عام)",
-    r"عمر\s*العقار\s*[:\-]?\s*(?:[٠-٩]|[0-2])\s*(?:سن|عام)",
-    r"\b(?:[٠-٩]|[0-2])\s*(?:سنة|سنين|سنوات|عام|عامين|سنتين)\b",
+    ("age_under_2y_ar",    r"أقل\s*من\s*[12]\s*(?:سن|عام)"),
+    ("age_field_low_ar",   r"عمر\s*العقار\s*[:\-]?\s*(?:[٠-٩]|[0-2])\s*(?:سن|عام)"),
+    ("age_low_anywhere",   r"\b(?:[٠-٩]|[0-2])\s*(?:سنة|سنين|سنوات|عام|عامين|سنتين)\b"),
 
     # English signals
-    r"(?:^|[^a-z])brand[\s-]*new\b",
-    r"\bnewly\s*(?:built|constructed|finished)\b",
-    r"\bunder\s*construction\b",
-    r"\bunder\s*finishing\b",
-    r"\b[0-2]\s*years?\b",
-    r"\b[0-2]\s*y\.?o\b",
-    r"\bnew\s+(?:build|building|apartment|flat|unit|property)\b",
-    r"\b(?:apartment|flat|unit|building)\s+is\s+new\b",
+    ("brand_new_en",          r"(?:^|[^a-z])brand[\s-]*new\b"),
+    ("newly_built_en",        r"\bnewly\s*(?:built|constructed|finished)\b"),
+    ("under_construction_en", r"\bunder\s*construction\b"),
+    ("under_finishing_en",    r"\bunder\s*finishing\b"),
+    ("age_low_en",            r"\b[0-2]\s*years?\b"),
+    ("age_low_yo",            r"\b[0-2]\s*y\.?o\b"),
+    ("new_thing_en",          r"\bnew\s+(?:build|building|apartment|flat|unit|property)\b"),
+    ("thing_is_new_en",       r"\b(?:apartment|flat|unit|building)\s+is\s+new\b"),
 ]
-_AGE_REGEX = re.compile("|".join(_NEW_PATTERNS), re.UNICODE | re.IGNORECASE)
+_NAMED_NEW_COMPILED = [
+    (name, re.compile(pat, re.UNICODE | re.IGNORECASE))
+    for name, pat in _NAMED_NEW_PATTERNS
+]
+# Combined regex retained for any callers wanting a quick boolean check.
+_AGE_REGEX = re.compile(
+    "|".join(p for _, p in _NAMED_NEW_PATTERNS), re.UNICODE | re.IGNORECASE
+)
 
 
 def _meaningful_text(text: str) -> str:
@@ -151,6 +158,8 @@ class SQLiteStore(Store):
             self.conn.execute("ALTER TABLE listings ADD COLUMN city TEXT")
         if "photos_json" not in cols:
             self.conn.execute("ALTER TABLE listings ADD COLUMN photos_json TEXT")
+        if "is_new_reason" not in cols:
+            self.conn.execute("ALTER TABLE listings ADD COLUMN is_new_reason TEXT")
         for s in (
             "CREATE INDEX IF NOT EXISTS idx_listings_city ON listings(city)",
             "CREATE INDEX IF NOT EXISTS idx_listings_district ON listings(district)",
@@ -178,10 +187,12 @@ class SQLiteStore(Store):
         self.conn.execute(
             """INSERT INTO listings (id, url, city, district, title, price_annual_sar, price_raw,
                price_period, area_sqm, bedrooms, bathrooms, living_rooms, age_label, is_new,
-               description, image_url, photos_json, first_seen_at, last_seen_at, status)
+               is_new_reason, description, image_url, photos_json,
+               first_seen_at, last_seen_at, status)
                VALUES (:id, :url, :city, :district, :title, :price_annual_sar, :price_raw,
                :price_period, :area_sqm, :bedrooms, :bathrooms, :living_rooms, :age_label, :is_new,
-               :description, :image_url, :photos_json, :first_seen_at, :last_seen_at, 'active')""",
+               :is_new_reason, :description, :image_url, :photos_json,
+               :first_seen_at, :last_seen_at, 'active')""",
             p,
         )
 
@@ -190,7 +201,8 @@ class SQLiteStore(Store):
             """UPDATE listings SET url=:url, city=:city, district=:district, title=:title,
                price_annual_sar=:price_annual_sar, price_raw=:price_raw, price_period=:price_period,
                area_sqm=:area_sqm, bedrooms=:bedrooms, bathrooms=:bathrooms, living_rooms=:living_rooms,
-               age_label=:age_label, is_new=:is_new, description=:description, image_url=:image_url,
+               age_label=:age_label, is_new=:is_new, is_new_reason=:is_new_reason,
+               description=:description, image_url=:image_url,
                photos_json=:photos_json, last_seen_at=:last_seen_at, status='active'
                WHERE id=:id""",
             p,
@@ -268,10 +280,12 @@ class PostgresStore(Store):
             cur.execute(
                 """INSERT INTO listings (id, url, city, district, title, price_annual_sar, price_raw,
                    price_period, area_sqm, bedrooms, bathrooms, living_rooms, age_label, is_new,
-                   description, image_url, photos, first_seen_at, last_seen_at, status)
+                   is_new_reason, description, image_url, photos,
+                   first_seen_at, last_seen_at, status)
                    VALUES (%(id)s, %(url)s, %(city)s, %(district)s, %(title)s, %(price_annual_sar)s,
                    %(price_raw)s, %(price_period)s, %(area_sqm)s, %(bedrooms)s, %(bathrooms)s,
-                   %(living_rooms)s, %(age_label)s, %(is_new)s, %(description)s, %(image_url)s,
+                   %(living_rooms)s, %(age_label)s, %(is_new)s, %(is_new_reason)s,
+                   %(description)s, %(image_url)s,
                    %(photos)s::jsonb, %(first_seen_at)s, %(last_seen_at)s, 'active')""",
                 {**p, "photos": json.dumps(photos, ensure_ascii=False)},
             )
@@ -285,6 +299,7 @@ class PostgresStore(Store):
                    price_raw=%(price_raw)s, price_period=%(price_period)s,
                    area_sqm=%(area_sqm)s, bedrooms=%(bedrooms)s, bathrooms=%(bathrooms)s,
                    living_rooms=%(living_rooms)s, age_label=%(age_label)s, is_new=%(is_new)s,
+                   is_new_reason=%(is_new_reason)s,
                    description=%(description)s, image_url=%(image_url)s,
                    photos=%(photos)s::jsonb, last_seen_at=%(last_seen_at)s, status='active'
                    WHERE id=%(id)s""",
@@ -365,13 +380,20 @@ def _detect_period(parts: list[str], raw_price: int) -> str:
     return "annual"
 
 
-def _detect_age(text: str) -> tuple[str, bool]:
+def _detect_age(text: str) -> tuple[str, bool, str | None]:
+    """Returns (age_label, is_new, matched_pattern_name).
+
+    age_label is "new" or "unknown" for back-compat.
+    matched_pattern_name records which signal fired so the DB stores it
+    in is_new_reason for audit / future tuning.
+    """
     if not text:
-        return "unknown", False
+        return "unknown", False, None
     cleaned = _meaningful_text(text)
-    if _AGE_REGEX.search(cleaned):
-        return "new", True
-    return "unknown", False
+    for name, rx in _NAMED_NEW_COMPILED:
+        if rx.search(cleaned):
+            return "new", True, name
+    return "unknown", False, None
 
 
 def parse_card(a) -> dict | None:
@@ -424,7 +446,9 @@ def parse_card(a) -> dict | None:
     long_parts = [p for p in parts if len(p) > 20]
     description = " ".join(long_parts) or " ".join(parts)
     full_text = " ".join(parts)
-    age_label, is_new = _detect_age(full_text if _AGE_REGEX.search(full_text) else description)
+    age_label, is_new, is_new_reason = _detect_age(
+        full_text if _AGE_REGEX.search(full_text) else description
+    )
 
     image_url = None
     for img in a.find_all("img"):
@@ -465,6 +489,7 @@ def parse_card(a) -> dict | None:
         "living_rooms": living,
         "age_label": age_label,
         "is_new": 1 if is_new else 0,
+        "is_new_reason": is_new_reason,
         "description": description[:2000],
         "image_url": image_url,
     }
