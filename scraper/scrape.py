@@ -47,17 +47,61 @@ DETAIL_PHOTO_RE = re.compile(r'https://images\.aqar\.fm/webp/[^"\'\s>]+/props/\d
 
 _AR_DIGITS = str.maketrans("٠١٢٣٤٥٦٧٨٩", "0123456789")
 
-_NEW_PATTERNS = [
-    r"جديد(?:ة|ه|ا)?",
-    r"عمر\s*العقار\s*[:\-]?\s*جديد",
-    r"أقل\s*من\s*[12]\s*(?:سن|عام)",
-    r"عمر\s*العقار\s*[:\-]?\s*(?:[٠-٩]|0|1|2)\s*(?:سن|عام)",
-    r"\b(?:[٠-٩]|0|1|2)\s*(?:سنة|سنين|سنوات|عام)",
-    r"تحت\s*الإنش?اء",
-    r"بناء?\s*جديد(?:ة|ه)?",
-    r"حديث\s*البناء",
+# Phrases where "جديد" is NOT about the apartment — strip these from the
+# text before checking for newness. This lets us accept bare "جديد" as a
+# real signal when it appears anywhere else.
+_FALSE_POSITIVE_PATTERNS = [
+    r"إعلان(?:ات)?\s*جديد(?:ة|ه|ا)?",     # "new ad / new ads"
+    r"صور(?:ة)?\s*جديد(?:ة|ه|ا)?",         # "new photo(s)"
+    r"تحديث\s*جديد",                        # "new update"
+    r"إصدار\s*جديد",                        # "new release"
+    r"تعديل\s*جديد",                        # "new edit"
+    r"عرض\s*جديد",                          # "new offer/ad"
+    r"\bnew\s+ad\b",
+    r"\bnew\s+photo(?:s)?\b",
+    r"\bnew\s+update\b",
 ]
-_AGE_REGEX = re.compile("|".join(_NEW_PATTERNS), re.UNICODE)
+_FALSE_POSITIVE_REGEX = re.compile(
+    "|".join(_FALSE_POSITIVE_PATTERNS), re.UNICODE | re.IGNORECASE
+)
+
+# Patterns that indicate the apartment age is "new" (≤ ~2 years).
+# These are checked AFTER false-positive phrases are stripped, so a bare
+# "جديد" anywhere else (e.g. "للإيجار جديد", "شقق جديدة") still counts.
+_NEW_PATTERNS = [
+    # high-confidence Arabic signals
+    r"عمر\s*العقار\s*[:\-]?\s*جديد",
+    r"تحت\s*الإنش?اء",                # under construction
+    r"تحت\s*التشطيب",                  # under (final) finishing
+    r"حديث\s*(?:البناء|الإنش?اء)",     # newly built
+    r"حديثة?\s*البناء",
+    r"على\s*العظم",                    # shell-only
+
+    # bare "جديد" — kept generic since false positives are stripped above
+    r"جديد(?:ة|ه|ا)?",
+
+    # numeric ages 0–2 (Arabic + Eastern Arabic digits)
+    r"أقل\s*من\s*[12]\s*(?:سن|عام)",
+    r"عمر\s*العقار\s*[:\-]?\s*(?:[٠-٩]|[0-2])\s*(?:سن|عام)",
+    r"\b(?:[٠-٩]|[0-2])\s*(?:سنة|سنين|سنوات|عام|عامين|سنتين)\b",
+
+    # English signals
+    r"(?:^|[^a-z])brand[\s-]*new\b",
+    r"\bnewly\s*(?:built|constructed|finished)\b",
+    r"\bunder\s*construction\b",
+    r"\bunder\s*finishing\b",
+    r"\b[0-2]\s*years?\b",
+    r"\b[0-2]\s*y\.?o\b",
+    r"\bnew\s+(?:build|building|apartment|flat|unit|property)\b",
+    r"\b(?:apartment|flat|unit|building)\s+is\s+new\b",
+]
+_AGE_REGEX = re.compile("|".join(_NEW_PATTERNS), re.UNICODE | re.IGNORECASE)
+
+
+def _meaningful_text(text: str) -> str:
+    """Strip false-positive 'new' phrases so the remaining text only carries
+    apartment-relevant signals."""
+    return _FALSE_POSITIVE_REGEX.sub(" ", text or "")
 
 
 # ----- Storage abstraction -----
@@ -324,7 +368,8 @@ def _detect_period(parts: list[str], raw_price: int) -> str:
 def _detect_age(text: str) -> tuple[str, bool]:
     if not text:
         return "unknown", False
-    if _AGE_REGEX.search(text):
+    cleaned = _meaningful_text(text)
+    if _AGE_REGEX.search(cleaned):
         return "new", True
     return "unknown", False
 
