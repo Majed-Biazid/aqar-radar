@@ -1,10 +1,9 @@
 name: scrape
 
 on:
-  schedule:
-    # Every 30 minutes. UTC. Adjust if you want different cadence.
-    - cron: "*/30 * * * *"
-  workflow_dispatch: {} # also allow manual runs from the Actions tab
+  # Triggered externally by cron-job.org (every 6h) via workflow_dispatch.
+  # Manual runs from the Actions tab also use workflow_dispatch.
+  workflow_dispatch: {}
 
 concurrency:
   group: scrape
