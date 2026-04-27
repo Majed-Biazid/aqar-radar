@@ -1,0 +1,56 @@
+name: scrape
+
+on:
+  schedule:
+    # Every 30 minutes. UTC. Adjust if you want different cadence.
+    - cron: "*/30 * * * *"
+  workflow_dispatch: {} # also allow manual runs from the Actions tab
+
+concurrency:
+  group: scrape
+  cancel-in-progress: false # don't cancel a running scrape; queue if needed
+
+jobs:
+  scrape:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: "pip"
+          cache-dependency-path: scraper/requirements.txt
+
+      - name: Install Python deps
+        run: pip install -r scraper/requirements.txt
+
+      - name: Build target list from lib/districts.ts
+        id: targets
+        run: |
+          python3 - <<'PY' >> $GITHUB_OUTPUT
+          import re, pathlib
+          text = pathlib.Path('lib/districts.ts').read_text(encoding='utf-8')
+          pairs, cities = [], set()
+          for m in re.finditer(r'd\(\s*"([^"]+)"\s*,\s*"([^"]+)"', text):
+              pairs.append(f"{m.group(1)}:{m.group(2)}")
+              cities.add(m.group(1))
+          for c in cities:
+              pairs.append(f"{c}:_all")
+          # GitHub multiline output
+          print("targets<<EOF")
+          print(",".join(pairs))
+          print("EOF")
+          PY
+
+      - name: Run scraper
+        env:
+          SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+        run: |
+          python3 scraper/scrape.py \
+            --db-url "$SUPABASE_DB_URL" \
+            --targets "${{ steps.targets.outputs.targets }}" \
+            --price-min 28000 \
+            --price-max 40000
