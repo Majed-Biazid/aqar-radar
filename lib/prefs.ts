@@ -60,14 +60,17 @@ function writePrefs(p: Prefs): void {
 
 /**
  * usePrefs — reactive accessor.
- * Reads synchronously on mount (so SSR HTML matches first client render),
- * persists on every change, and broadcasts updates to other tabs via
- * the storage event.
+ * Server render → DEFAULT_PREFS (no localStorage available).
+ * Client first paint → still DEFAULT_PREFS (matches SSR HTML, no mismatch).
+ * After mount → effect reads localStorage and flips hydrated=true.
+ * The caller can gate rendering on `hydrated` to avoid showing factory
+ * defaults before saved prefs have been applied.
  */
 export function usePrefs(): {
   prefs: Prefs;
   setPrefs: (next: Partial<Prefs>) => void;
   reset: () => void;
+  hydrated: boolean;
 } {
   const [prefs, setLocal] = useState<Prefs>(DEFAULT_PREFS);
   const [hydrated, setHydrated] = useState(false);
@@ -96,7 +99,7 @@ export function usePrefs(): {
     if (hydrated) writePrefs(DEFAULT_PREFS);
   };
 
-  return { prefs, setPrefs, reset };
+  return { prefs, setPrefs, reset, hydrated };
 }
 
 /** Build a Filters object from prefs (used as initial state on page load). */

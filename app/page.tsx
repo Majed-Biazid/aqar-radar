@@ -9,6 +9,7 @@ import { ThemeToggle } from "@/components/ThemeToggle";
 import { DetailDrawer } from "@/components/DetailDrawer";
 import { BrandMark } from "@/components/BrandMark";
 import { SettingsButton } from "@/components/SettingsPanel";
+import { LoadingScreen } from "@/components/LoadingScreen";
 import { usePrefs, filtersFromPrefs } from "@/lib/prefs";
 import { DISTRICTS } from "@/lib/districts";
 import type { Filters, Listing, RefreshRun } from "@/lib/types";
@@ -43,7 +44,7 @@ type ApiResponse = {
 const ALL_DISTRICT_IDS = DISTRICTS.map((d) => d.id);
 
 export default function Home() {
-  const { prefs, setPrefs } = usePrefs();
+  const { prefs, setPrefs, hydrated } = usePrefs();
   const [filters, setFilters] = useState<Filters>(() => ({
     districts: ALL_DISTRICT_IDS,
     priceMin: 28000,
@@ -54,24 +55,15 @@ export default function Home() {
     query: "",
   }));
 
-  // Apply pref defaults to filters once prefs hydrate from localStorage —
-  // but only if the user hasn't started editing (still on factory defaults).
+  // Apply prefs to filters once they've actually hydrated from localStorage.
+  // Without the `hydrated` guard, this would fire on the first render with
+  // DEFAULT_PREFS and then never re-fire — losing the saved values.
   const [prefsApplied, setPrefsApplied] = useState(false);
   useEffect(() => {
-    if (prefsApplied) return;
-    setFilters((curr) => {
-      const isFactory =
-        curr.priceMin === 28000 &&
-        curr.priceMax === 40000 &&
-        curr.ageMode === "any" &&
-        curr.sort === "price-asc" &&
-        curr.includeGone === false &&
-        curr.query === "";
-      if (!isFactory) return curr;
-      return filtersFromPrefs(prefs, ALL_DISTRICT_IDS);
-    });
+    if (!hydrated || prefsApplied) return;
+    setFilters(filtersFromPrefs(prefs, ALL_DISTRICT_IDS));
     setPrefsApplied(true);
-  }, [prefs, prefsApplied]);
+  }, [hydrated, prefs, prefsApplied]);
   const [data, setData] = useState<ApiResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [hoveredId, setHoveredId] = useState<string | null>(null);
@@ -112,12 +104,16 @@ export default function Home() {
     setLoading(false);
   }
 
+  // Don't fetch until prefs have been applied — otherwise we'd fire one
+  // request with factory defaults then immediately re-fire with prefs.
   // Only refetch when server-side filters change. `query` and `sort` apply
   // client-side, so they must NOT trigger a network roundtrip.
   useEffect(() => {
+    if (!prefsApplied) return;
     load(filters);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
+    prefsApplied,
     filters.districts.join(","),
     filters.priceMin,
     filters.priceMax,
@@ -204,6 +200,13 @@ export default function Home() {
 
   const lastRefreshed = data?.latestRun?.finished_at || data?.latestRun?.started_at;
   const lastRefreshedHuman = lastRefreshed ? timeAgo(lastRefreshed) : "—";
+
+  // Show a centered global loading screen until both prefs have hydrated
+  // from localStorage AND the first listings fetch has resolved. This
+  // prevents the user from seeing factory defaults flash to saved state.
+  if (!hydrated || !data) {
+    return <LoadingScreen />;
+  }
 
   return (
     <main
