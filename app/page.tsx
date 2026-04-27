@@ -7,6 +7,9 @@ import { ListingCard } from "@/components/ListingCard";
 import { RefreshButton } from "@/components/RefreshButton";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { DetailDrawer } from "@/components/DetailDrawer";
+import { BrandMark } from "@/components/BrandMark";
+import { SettingsButton } from "@/components/SettingsPanel";
+import { usePrefs, filtersFromPrefs } from "@/lib/prefs";
 import { DISTRICTS } from "@/lib/districts";
 import type { Filters, Listing, RefreshRun } from "@/lib/types";
 import { t } from "@/lib/i18n";
@@ -16,10 +19,17 @@ const MapView = dynamic(() => import("@/components/MapView"), {
   ssr: false,
   loading: () => (
     <div
-      className="flex items-center justify-center h-full min-h-[500px] rounded-[4px] border font-mono text-[11px]"
-      style={{ borderColor: "var(--hairline)", color: "var(--fg-muted)" }}
+      className="flex items-center justify-center h-full min-h-[500px]"
+      style={{
+        borderRadius: "var(--radius-lg)",
+        border: "1px solid var(--hairline-soft)",
+        background: "var(--bg-raised)",
+        color: "var(--fg-muted)",
+        fontFamily: "var(--font-mono)",
+        fontSize: 11,
+      }}
     >
-      map loading…
+      جارٍ تحميل الخريطة…
     </div>
   ),
 });
@@ -30,39 +40,61 @@ type ApiResponse = {
   latestRun: RefreshRun | null;
 };
 
-const DEFAULT_FILTERS: Filters = {
-  districts: DISTRICTS.map((d) => d.id),
-  priceMin: 28000,
-  priceMax: 40000,
-  ageMode: "any",
-  includeGone: false,
-  sort: "price-asc",
-  query: "",
-};
+const ALL_DISTRICT_IDS = DISTRICTS.map((d) => d.id);
 
 export default function Home() {
-  const [filters, setFilters] = useState<Filters>(DEFAULT_FILTERS);
+  const { prefs, setPrefs } = usePrefs();
+  const [filters, setFilters] = useState<Filters>(() => ({
+    districts: ALL_DISTRICT_IDS,
+    priceMin: 28000,
+    priceMax: 40000,
+    ageMode: "any",
+    includeGone: false,
+    sort: "price-asc",
+    query: "",
+  }));
+
+  // Apply pref defaults to filters once prefs hydrate from localStorage —
+  // but only if the user hasn't started editing (still on factory defaults).
+  const [prefsApplied, setPrefsApplied] = useState(false);
+  useEffect(() => {
+    if (prefsApplied) return;
+    setFilters((curr) => {
+      const isFactory =
+        curr.priceMin === 28000 &&
+        curr.priceMax === 40000 &&
+        curr.ageMode === "any" &&
+        curr.sort === "price-asc" &&
+        curr.includeGone === false &&
+        curr.query === "";
+      if (!isFactory) return curr;
+      return filtersFromPrefs(prefs, ALL_DISTRICT_IDS);
+    });
+    setPrefsApplied(true);
+  }, [prefs, prefsApplied]);
   const [data, setData] = useState<ApiResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [hoveredId, setHoveredId] = useState<string | null>(null);
   const [openListing, setOpenListing] = useState<Listing | null>(null);
-  // On mobile, default to "list" — the side-by-side split is desktop-first.
-  // The view switcher in the header lets you flip to map at any time.
-  const [view, setView] = useState<"split" | "list" | "map">("list");
   const [isMobile, setIsMobile] = useState(false);
-  const [savedOnly, setSavedOnly] = useState(false);
   const saved = useSavedListings();
+
+  // view + savedOnly are mirrored from prefs so reloading restores the user's
+  // last choice. Writing back through setPrefs persists every change.
+  const view = prefs.view;
+  const setView = (v: typeof prefs.view) => setPrefs({ view: v });
+  const savedOnly = prefs.savedOnly;
+  const setSavedOnly = (next: boolean | ((prev: boolean) => boolean)) =>
+    setPrefs({
+      savedOnly: typeof next === "function" ? next(prefs.savedOnly) : next,
+    });
 
   useEffect(() => {
     const mq = window.matchMedia("(min-width: 900px)");
-    const onChange = () => {
-      setIsMobile(!mq.matches);
-      // First desktop visit: upgrade list → split for the richer view.
-      if (mq.matches) setView((v) => (v === "list" ? "split" : v));
-    };
-    onChange();
-    mq.addEventListener("change", onChange);
-    return () => mq.removeEventListener("change", onChange);
+    const sync = () => setIsMobile(!mq.matches);
+    sync();
+    mq.addEventListener("change", sync);
+    return () => mq.removeEventListener("change", sync);
   }, []);
 
   async function load(f: Filters) {
@@ -80,8 +112,8 @@ export default function Home() {
     setLoading(false);
   }
 
-  // Only refetch when server-side filters change. `query` and `sort` are
-  // applied client-side, so changing them must NOT trigger a network roundtrip.
+  // Only refetch when server-side filters change. `query` and `sort` apply
+  // client-side, so they must NOT trigger a network roundtrip.
   useEffect(() => {
     load(filters);
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -106,9 +138,6 @@ export default function Home() {
     for (const d of DISTRICTS) counts[d.id] = 0;
     if (!data) return counts;
     for (const l of data.listings) {
-      // Count under the logical (possibly text-overridden) district. Match by
-      // city-scoped URL pattern so e.g. Dammam:هجر and Dhahran:هجر are kept
-      // separate, then fall back to label match for text-overridden listings.
       const byLabel = DISTRICTS.find((d) => d.label === l.district && l.city === d.city);
       const byUrl = DISTRICTS.find(
         (d) => l.url.includes(`/${d.city}/حي-${d.slug}/`)
@@ -119,7 +148,6 @@ export default function Home() {
     return counts;
   }, [data]);
 
-  // Apply sort + search client-side (data is small — no need to round-trip)
   const visibleListings = useMemo(() => {
     if (!data) return [];
     const q = filters.query.trim().toLowerCase();
@@ -156,7 +184,6 @@ export default function Home() {
         sorted.sort((a, b) => (b.price_annual_sar ?? 0) - (a.price_annual_sar ?? 0));
         break;
       case "new-first":
-        // Seller-labeled "جديد" rises, then by price ascending within each group
         sorted.sort((a, b) => {
           const aNew = a.is_new === 1 ? 0 : 1;
           const bNew = b.is_new === 1 ? 0 : 1;
@@ -171,191 +198,170 @@ export default function Home() {
         sorted.sort((a, b) => (b.area_sqm ?? 0) - (a.area_sqm ?? 0));
         break;
     }
-    // Always keep "gone" items last regardless of sort
     sorted.sort((a, b) => (a.status === "gone" ? 1 : 0) - (b.status === "gone" ? 1 : 0));
     return sorted;
   }, [data, filters.sort, filters.query, savedOnly, saved.ids]);
 
   const lastRefreshed = data?.latestRun?.finished_at || data?.latestRun?.started_at;
-  const lastRefreshedHuman = lastRefreshed ? timeAgo(lastRefreshed) : "never";
+  const lastRefreshedHuman = lastRefreshed ? timeAgo(lastRefreshed) : "—";
 
   return (
     <main
-      className="min-h-screen flex flex-col max-w-[1700px] mx-auto px-3 sm:px-5 md:px-8 py-3 md:py-6"
+      className="min-h-screen flex flex-col mx-auto"
       style={{
-        // Safe-area floors — keep notch/home-bar visible.
-        paddingInlineStart: "max(env(safe-area-inset-left), 12px)",
-        paddingInlineEnd: "max(env(safe-area-inset-right), 12px)",
-        paddingBottom: "max(env(safe-area-inset-bottom), var(--s-5))",
-        gap: "var(--s-3)",
+        maxWidth: 1700,
+        gap: "var(--s-4)",
+        paddingInlineStart: "max(env(safe-area-inset-left), 16px)",
+        paddingInlineEnd: "max(env(safe-area-inset-right), 16px)",
+        paddingTop: "var(--s-4)",
+        paddingBottom: "max(env(safe-area-inset-bottom), var(--s-6))",
       }}
     >
-      {/* Header — masthead */}
+      {/* === Header — masthead ============================================== */}
       <header
-        className="flex flex-wrap items-end justify-between gap-3 border-b pb-2 md:pb-4"
-        style={{ borderColor: "var(--hairline)" }}
+        className="flex items-end justify-between gap-3 flex-wrap"
+        style={{ paddingBlock: "var(--s-2)" }}
       >
-        <div className="flex flex-col min-w-0 flex-1" style={{ gap: "var(--s-1)" }}>
-          {/* Eyebrow — register identifier (desktop only; redundant with wordmark on mobile) */}
-          <div
-            className="label-mast hidden md:inline-flex items-center"
+        <div className="flex flex-col min-w-0 flex-1" style={{ gap: 2 }}>
+          {/* eyebrow — only desktop */}
+          <span
+            className="hidden md:inline-flex items-center"
             style={{
               fontFamily: "var(--font-display)",
               fontSize: 11,
-              color: "var(--stone)",
-              letterSpacing: "var(--track-wide)",
-              textTransform: "none",
+              fontWeight: 500,
+              color: "var(--fg-muted)",
+              letterSpacing: "var(--track-std)",
+              textTransform: "uppercase",
             }}
           >
-            {t("brand.tag")}
-            <span aria-hidden className="ledger-rule" />
-            الدمام
-            <span aria-hidden className="ledger-rule" />
-            الخبر
-          </div>
-
-          {/* Wordmark — italic serif "Radar" + Arabic transliteration accent */}
-          <h1
-            className="leading-none flex items-baseline flex-wrap"
-            style={{ gap: "var(--s-2)" }}
-          >
-            <span
-              className="italic"
-              style={{
-                fontFamily: "var(--font-serif)",
-                fontWeight: 600,
-                color: "var(--fg)",
-                fontSize: "clamp(28px, 6.5vw, 60px)",
-                letterSpacing: "-0.02em",
-              }}
-            >
-              Radar
+            <span style={{ color: "var(--terracotta)", letterSpacing: "var(--track-tight)" }}>
+              ◉
             </span>
+            <span style={{ marginInline: 8 }}>{t("brand.tag")}</span>
+            <span aria-hidden style={{ width: 16, height: 1, background: "var(--hairline)" }} />
+            <span style={{ marginInlineStart: 8 }}>{t("brand.cities")}</span>
+          </span>
+
+          {/* wordmark — icon + Arabic name only (no English) */}
+          <h1
+            className="leading-none flex items-center flex-wrap"
+            style={{ gap: 14, marginTop: 4 }}
+          >
+            <BrandMark size={48} ariaLabel="رادار" />
             <span
               style={{
                 fontFamily: "var(--font-display)",
-                fontWeight: 500,
-                color: "var(--terracotta)",
-                fontSize: "clamp(16px, 2.4vw, 28px)",
-                letterSpacing: "-0.01em",
+                fontWeight: 700,
+                color: "var(--fg)",
+                fontSize: "clamp(34px, 6.5vw, 60px)",
+                letterSpacing: "-0.025em",
+                lineHeight: 1,
               }}
             >
               رادار
             </span>
-            <span
-              className="hidden md:inline-flex font-normal"
-              style={{
-                color: "var(--fg-muted)",
-                fontFamily: "var(--font-mono)",
-                fontSize: 11,
-                letterSpacing: "var(--track-std)",
-                textTransform: "uppercase",
-                marginTop: "var(--s-1)",
-              }}
-            >
-              / Eastern Province Rental Tracker
-            </span>
           </h1>
 
-          {/* Stats strip */}
+          {/* tagline + stats */}
           <div
             className="tabular flex items-center flex-wrap"
             style={{
-              fontFamily: "var(--font-mono)",
-              fontSize: 12,
+              fontFamily: "var(--font-display)",
+              fontSize: 13,
               color: "var(--fg-muted)",
-              gap: "var(--s-1)",
+              gap: 10,
+              marginTop: 6,
             }}
           >
             {data ? (
               <>
-                <Stat n={data.summary.active} label={t("stats.active")} />
-                <span aria-hidden className="ledger-rule" />
-                <button
+                <Stat n={data.summary.active} label={t("stats.active")} accent="var(--fg)" />
+                <Dot />
+                <ChipStat
+                  active={filters.ageMode === "new-only"}
                   onClick={() =>
                     setFilters((f) => ({
                       ...f,
                       ageMode: f.ageMode === "new-only" ? "any" : "new-only",
                     }))
                   }
-                  title={
-                    filters.ageMode === "new-only"
-                      ? "showing only seller-tagged جديد — click to clear"
-                      : "show only listings the seller tagged جديد"
-                  }
-                  className="inline-flex items-baseline gap-1.5 transition-colors hover:underline underline-offset-4"
-                  style={{
-                    color:
-                      filters.ageMode === "new-only" ? "var(--terracotta)" : "inherit",
-                  }}
-                >
-                  <Strong color="var(--terracotta)">{data.summary.new_labeled}</Strong>
-                  <span style={{ fontFamily: "var(--font-display)" }}>
-                    جديد{filters.ageMode === "new-only" ? " ✓" : ""}
-                  </span>
-                </button>
+                  n={data.summary.new_labeled}
+                  label={t("stats.new")}
+                  color="var(--terracotta)"
+                />
                 {saved.count > 0 && (
                   <>
-                    <span aria-hidden className="ledger-rule" />
-                    <button
+                    <Dot />
+                    <ChipStat
+                      active={savedOnly}
                       onClick={() => setSavedOnly((v) => !v)}
-                      title={savedOnly ? "عرض كل العروض" : "عرض المحفوظات فقط"}
-                      className="inline-flex items-baseline gap-1.5 transition-colors hover:underline underline-offset-4"
-                      style={{
-                        color: savedOnly ? "var(--terracotta)" : "inherit",
-                      }}
-                    >
-                      <span style={{ fontSize: 13 }}>{savedOnly ? "★" : "☆"}</span>
-                      <Strong color="var(--terracotta)">{saved.count}</Strong>
-                      <span style={{ fontFamily: "var(--font-display)" }}>
-                        {t("stats.saved")}{savedOnly ? " ✓" : ""}
-                      </span>
-                    </button>
+                      n={saved.count}
+                      label={t("stats.saved")}
+                      color="var(--terracotta)"
+                      glyph={savedOnly ? "★" : "☆"}
+                    />
                   </>
                 )}
-                <span aria-hidden className="ledger-rule hidden sm:inline-flex" />
+                <Dot className="hidden sm:inline-flex" />
                 <span className="hidden sm:inline-flex items-baseline gap-1.5">
                   <Strong color="var(--sage)">{data.summary.price_dropped}</Strong>
                   <span>{t("stats.dropped")}</span>
                 </span>
-                <span aria-hidden className="ledger-rule hidden md:inline-flex" />
+                <Dot className="hidden md:inline-flex" />
                 <span className="hidden md:inline-flex items-baseline gap-1.5">
                   <span>{t("stats.lastScrape")}</span>
                   <Strong>{lastRefreshedHuman}</Strong>
                 </span>
               </>
             ) : (
-              <span>{t("stats.loading")}</span>
+              <span className="inline-flex items-center gap-2">
+                <span
+                  className="inline-block w-1.5 h-1.5 rounded-full"
+                  style={{ background: "var(--terracotta)", animation: "pulse 1.4s ease-in-out infinite" }}
+                />
+                {t("stats.loading")}
+              </span>
             )}
           </div>
         </div>
 
         {/* Actions cluster */}
-        <div className="flex items-center shrink-0" style={{ gap: "var(--s-2)" }}>
+        <div className="flex items-center shrink-0" style={{ gap: 8 }}>
           <ViewSwitcher value={view} onChange={setView} compact={isMobile} />
+          <SettingsButton />
           <ThemeToggle />
           <RefreshButton onDone={() => load(filters)} />
         </div>
       </header>
 
-      {/* Horizontal filter bar — across the top */}
-      <FilterPanel filters={filters} districtCounts={districtCounts} onChange={setFilters} />
+      {/* === Filter rail + drawer ============================================ */}
+      <FilterPanel
+        filters={filters}
+        districtCounts={districtCounts}
+        onChange={setFilters}
+        mode={prefs.filterMode}
+        onModeChange={(m) => setPrefs({ filterMode: m })}
+      />
 
-      {/* listings | map — single column on mobile, split on desktop */}
+      {/* === Listings + Map ================================================== */}
       <div
-        className="grid gap-4 md:gap-6"
-        style={{ gridTemplateColumns: isMobile ? "1fr" : gridFor(view) }}
+        className="grid"
+        style={{
+          gap: "var(--s-5)",
+          gridTemplateColumns: isMobile ? "1fr" : gridFor(view),
+        }}
       >
         {(view === "split" || view === "list" || isMobile) && view !== "map" && (
-          <section className="flex flex-col gap-3 min-w-0">
-            <div className="flex items-baseline justify-between" style={{ gap: "var(--s-3)" }}>
+          <section className="flex flex-col min-w-0" style={{ gap: "var(--s-3)" }}>
+            <div className="flex items-baseline justify-between" style={{ gap: 12 }}>
               <h2
                 className="inline-flex items-baseline"
                 style={{
-                  gap: "var(--s-2)",
+                  gap: 8,
                   fontFamily: "var(--font-display)",
-                  fontSize: 13,
-                  color: "var(--stone)",
+                  fontSize: 14,
+                  color: "var(--fg-muted)",
                   fontWeight: 500,
                 }}
               >
@@ -363,19 +369,16 @@ export default function Home() {
                 <span
                   className="tabular"
                   style={{
-                    color: "var(--terracotta)",
+                    color: "var(--fg)",
                     fontFamily: "var(--font-serif)",
                     fontWeight: 600,
-                    fontSize: 16,
+                    fontSize: 18,
                   }}
                 >
                   {visibleListings.length}
                 </span>
                 {filters.query && data && (
-                  <span
-                    className="label label-xs"
-                    style={{ color: "var(--fg-muted)", textTransform: "none", letterSpacing: 0 }}
-                  >
+                  <span style={{ color: "var(--fg-muted)", fontSize: 12 }}>
                     {t("listings.of")} {data.listings.length}
                   </span>
                 )}
@@ -387,12 +390,15 @@ export default function Home() {
                     color: "var(--fg-muted)",
                     gap: 6,
                     fontFamily: "var(--font-display)",
-                    fontSize: 11,
+                    fontSize: 12,
                   }}
                 >
                   <span
                     className="inline-block w-1.5 h-1.5 rounded-full"
-                    style={{ background: "var(--terracotta)", animation: "pulse 1.4s ease-in-out infinite" }}
+                    style={{
+                      background: "var(--terracotta)",
+                      animation: "pulse 1.4s ease-in-out infinite",
+                    }}
                   />
                   {t("stats.loading")}
                 </span>
@@ -401,12 +407,11 @@ export default function Home() {
             {data && visibleListings.length === 0 && <EmptyState />}
             <div
               className={
-                // split view (with map) → up to 3 cols
-                // list view (no map)    → up to 6 cols on wide screens
                 view === "split"
-                  ? "grid gap-2.5 md:gap-3 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3"
-                  : "grid gap-2.5 md:gap-3 grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6"
+                  ? "grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3"
+                  : "grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6"
               }
+              style={{ gap: "var(--s-3)" }}
             >
               {visibleListings.map((l, i) => (
                 <ListingCard
@@ -427,7 +432,7 @@ export default function Home() {
             key={view}
             className="md:sticky md:top-4 md:self-start"
             style={{
-              height: isMobile ? "calc(100vh - 220px)" : "calc(100vh - 160px)",
+              height: isMobile ? "calc(100vh - 240px)" : "calc(100vh - 180px)",
               minHeight: isMobile ? 360 : undefined,
             }}
           >
@@ -450,7 +455,6 @@ export default function Home() {
 
 function gridFor(view: "split" | "list" | "map"): string {
   if (view === "split") return "minmax(0, 1.15fr) minmax(440px, 1fr)";
-  if (view === "list") return "1fr";
   return "1fr";
 }
 
@@ -465,12 +469,69 @@ function Strong({ children, color }: { children: React.ReactNode; color?: string
   );
 }
 
-function Stat({ n, label }: { n: number; label: string }) {
+function Stat({ n, label, accent }: { n: number; label: string; accent?: string }) {
   return (
-    <span className="inline-flex items-baseline" style={{ gap: "var(--s-2)" }}>
-      <Strong>{n}</Strong>
+    <span className="inline-flex items-baseline gap-1.5">
+      <Strong color={accent}>{n}</Strong>
       <span>{label}</span>
     </span>
+  );
+}
+
+function Dot({ className }: { className?: string }) {
+  return (
+    <span
+      aria-hidden
+      className={`inline-block ${className ?? ""}`}
+      style={{
+        width: 3,
+        height: 3,
+        borderRadius: 999,
+        background: "var(--hairline)",
+        marginInline: 2,
+      }}
+    />
+  );
+}
+
+function ChipStat({
+  active,
+  onClick,
+  n,
+  label,
+  color,
+  glyph,
+}: {
+  active: boolean;
+  onClick: () => void;
+  n: number;
+  label: string;
+  color: string;
+  glyph?: string;
+}) {
+  return (
+    <button
+      onClick={onClick}
+      className="inline-flex items-baseline transition-all"
+      style={{
+        gap: 6,
+        paddingInline: 10,
+        paddingBlock: 4,
+        borderRadius: "var(--radius-pill)",
+        background: active
+          ? `color-mix(in srgb, ${color} 14%, transparent)`
+          : "transparent",
+        border: `1px solid ${active ? color : "transparent"}`,
+        color: active ? "var(--fg)" : "var(--fg-muted)",
+      }}
+    >
+      {glyph && <span style={{ fontSize: 12, color }}>{glyph}</span>}
+      <Strong color={color}>{n}</Strong>
+      <span style={{ fontSize: 12 }}>
+        {label}
+        {active && " ✓"}
+      </span>
+    </button>
   );
 }
 
@@ -496,14 +557,13 @@ function ViewSwitcher({
   return (
     <div
       role="tablist"
-      className="inline-flex items-center overflow-hidden"
+      className="inline-flex p-1"
       style={{
-        height: 36,
-        border: "1px solid var(--hairline)",
-        borderRadius: "var(--radius-chip)",
+        background: "var(--surface-soft)",
+        borderRadius: "var(--radius-pill)",
       }}
     >
-      {opts.map((o, i) => {
+      {opts.map((o) => {
         const active = value === o.k;
         return (
           <button
@@ -512,16 +572,18 @@ function ViewSwitcher({
             aria-selected={active}
             onClick={() => onChange(o.k)}
             title={o.label}
-            className="inline-flex items-center justify-center transition-colors h-full"
+            className="inline-flex items-center justify-center transition-all"
             style={{
-              padding: "0 12px",
-              minWidth: 40,
-              background: active ? "var(--surface)" : "transparent",
+              minWidth: compact ? 40 : 64,
+              height: 32,
+              paddingInline: compact ? 8 : 14,
+              borderRadius: "var(--radius-pill)",
+              background: active ? "var(--bg-raised)" : "transparent",
               color: active ? "var(--fg)" : "var(--fg-muted)",
-              fontFamily: "var(--font-mono)",
-              fontSize: 11,
-              letterSpacing: "var(--track-std)",
-              borderInlineStart: i === 0 ? "none" : "1px solid var(--hairline)",
+              fontFamily: "var(--font-display)",
+              fontSize: 12,
+              fontWeight: active ? 600 : 400,
+              boxShadow: active ? "var(--shadow-card)" : "none",
             }}
           >
             <span className="hidden md:inline">{o.label}</span>
@@ -542,7 +604,8 @@ function EmptyState() {
       style={{
         padding: "var(--s-12) var(--s-6)",
         border: "1px dashed var(--hairline)",
-        borderRadius: "var(--radius-tile)",
+        borderRadius: "var(--radius-lg)",
+        background: "var(--bg-raised)",
         gap: "var(--s-3)",
       }}
     >
@@ -551,7 +614,7 @@ function EmptyState() {
         style={{
           fontFamily: "var(--font-serif)",
           fontStyle: "italic",
-          fontSize: 32,
+          fontSize: 36,
           color: "var(--terracotta)",
           opacity: 0.6,
           lineHeight: 1,
@@ -562,9 +625,9 @@ function EmptyState() {
       <div
         style={{
           fontFamily: "var(--font-display)",
-          fontSize: 18,
+          fontSize: 19,
           color: "var(--fg)",
-          fontWeight: 500,
+          fontWeight: 600,
         }}
       >
         {t("empty.title")}
@@ -573,7 +636,7 @@ function EmptyState() {
         className="max-w-[420px]"
         style={{
           color: "var(--fg-muted)",
-          fontSize: 12,
+          fontSize: 13,
           fontFamily: "var(--font-body)",
           lineHeight: 1.6,
         }}
@@ -586,8 +649,8 @@ function EmptyState() {
 
 function timeAgo(iso: string): string {
   const secs = Math.floor((Date.now() - new Date(iso).getTime()) / 1000);
-  if (secs < 60) return `${secs}s ago`;
-  if (secs < 3600) return `${Math.floor(secs / 60)}m ago`;
-  if (secs < 86400) return `${Math.floor(secs / 3600)}h ago`;
-  return `${Math.floor(secs / 86400)}d ago`;
+  if (secs < 60) return `${secs}s`;
+  if (secs < 3600) return `${Math.floor(secs / 60)}m`;
+  if (secs < 86400) return `${Math.floor(secs / 3600)}h`;
+  return `${Math.floor(secs / 86400)}d`;
 }

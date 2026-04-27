@@ -37,25 +37,15 @@ export function RefreshButton({ onDone }: Props) {
       <button
         onClick={go}
         disabled={loading}
-        className="inline-flex items-center transition-colors disabled:cursor-wait"
-        style={{
-          height: 36,
-          padding: "0 14px",
-          gap: 8,
-          borderRadius: "var(--radius-chip)",
-          border: "1px solid var(--terracotta)",
-          background: loading ? "transparent" : "var(--terracotta)",
-          color: loading ? "var(--terracotta)" : "var(--parchment)",
-          fontFamily: "var(--font-display)",
-          fontSize: 13,
-          fontWeight: 600,
-        }}
+        className="btn btn-primary disabled:cursor-wait"
+        style={loading ? { background: "var(--surface-soft)", color: "var(--terracotta)", border: "1px solid var(--terracotta)" } : undefined}
       >
         <span
           aria-hidden
           style={{
             display: "inline-block",
             animation: loading ? "spin 1s linear infinite" : "none",
+            fontSize: 14,
           }}
         >
           ↻

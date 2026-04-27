@@ -25,22 +25,14 @@ export function ThemeToggle() {
       onClick={flip}
       aria-label={`switch to ${isDark ? "light" : "dark"} theme`}
       title={`switch to ${isDark ? "light" : "dark"}`}
-      className="inline-flex items-center justify-center transition-colors hover:opacity-100"
+      className="btn btn-ghost btn-icon"
       style={{
-        width: 36,
-        height: 36,
-        borderRadius: "var(--radius-chip)",
-        border: "1px solid var(--hairline)",
         color: "var(--fg-muted)",
-        background: "transparent",
-        opacity: 0.85,
-        fontSize: 14,
+        fontSize: 16,
         lineHeight: 1,
       }}
     >
-      <span aria-hidden style={{ transition: "transform 240ms var(--ease-out)" }}>
-        {isDark ? "◑" : "◐"}
-      </span>
+      <span aria-hidden>{isDark ? "◐" : "◑"}</span>
     </button>
   );
 }

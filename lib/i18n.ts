@@ -11,8 +11,9 @@
 
 const dict: Record<string, string> = {
   // Brand / masthead
-  "brand.tag": "سجل شخصي",
-  "brand.subtitle": "رادار إيجارات الشرقية",
+  "brand.tag": "إيجارات الشرقية",
+  "brand.subtitle": "رادار العروض النشطة وانخفاضات الأسعار",
+  "brand.cities": "الدمام · الخبر · الظهران",
 
   // Header stats
   "stats.active": "نشطة",
@@ -31,13 +32,20 @@ const dict: Record<string, string> = {
   "refresh.idle": "تحديث",
   "refresh.loading": "يحدّث…",
 
-  // Filter slip — masthead
-  "filter.title": "استمارة بحث",
-  "filter.subtitle": "حقل الاستعلام",
+  // Filter
+  "filter.title": "تصفية",
+  "filter.subtitle": "خصّص ما يظهر لك",
   "filter.districts": "الأحياء",
   "filter.results": "النتائج",
-  "filter.reset": "إعادة تعيين",
+  "filter.reset": "تصفير",
   "filter.tally": "الإجمالي",
+  "filter.open": "تصفية",
+  "filter.close": "إغلاق",
+  "filter.apply": "تطبيق",
+  "filter.activeNone": "لا توجد فلاتر مفعّلة",
+  "filter.clearAll": "مسح الكل",
+  "filter.allDistricts": "كل الأحياء",
+  "filter.cityAll": "كل أحياء",
 
   // Filter actions
   "filter.selectAll": "تحديد الكل",

@@ -32,26 +32,37 @@ function ListingCardImpl({ listing, index, onOpen, onHover, hovered }: Props) {
 
   return (
     <article
-      className={`rise group relative flex flex-col overflow-hidden cursor-pointer transition-all duration-200 ${
-        isGone ? "gone-pattern opacity-70" : ""
+      className={`rise group relative flex flex-col overflow-hidden cursor-pointer transition-all ${
+        isGone ? "gone-pattern" : ""
       }`}
       style={{
         animationDelay: `${delay}ms`,
         background: "var(--bg-raised)",
         border: "1px solid",
-        borderColor: hovered ? "var(--terracotta)" : "var(--hairline)",
-        borderRadius: "var(--radius-tile)",
-        boxShadow: hovered ? "var(--shadow-lift)" : "none",
-        transform: hovered ? "translateY(-2px)" : "none",
+        borderColor: hovered ? "var(--terracotta)" : "var(--hairline-soft)",
+        borderRadius: "var(--radius-lg)",
+        boxShadow: hovered ? "var(--shadow-lift)" : "var(--shadow-card)",
+        transform: hovered ? "translateY(-3px)" : "none",
+        opacity: isGone ? 0.7 : 1,
+        transitionDuration: "var(--dur-base)",
+        transitionTimingFunction: "var(--ease-soft)",
       }}
       onMouseEnter={() => onHover(listing.id)}
       onMouseLeave={() => onHover(null)}
       onClick={() => onOpen(listing)}
     >
-      {/* === Image — top of tile ============================================== */}
+      {/* === Image — top, with inset rounding for the modern look ============ */}
       <div
         className="relative bg-[var(--surface)] overflow-hidden"
-        style={{ aspectRatio: "16 / 10" }}
+        style={{
+          aspectRatio: "16 / 11",
+          borderStartStartRadius: "var(--radius-md)",
+          borderStartEndRadius: "var(--radius-md)",
+          borderEndStartRadius: 0,
+          borderEndEndRadius: 0,
+          margin: 6,
+          marginBottom: 0,
+        }}
       >
         {listing.image_url && imgOk ? (
           <Image
@@ -70,20 +81,20 @@ function ListingCardImpl({ listing, index, onOpen, onHover, hovered }: Props) {
             style={{
               color: "var(--fg-muted)",
               fontFamily: "var(--font-display)",
-              fontSize: 11,
+              fontSize: 12,
             }}
           >
             {t("card.noPhoto")}
           </div>
         )}
 
-        {/* warm wash for legibility behind district pill */}
+        {/* legibility wash for the district pill */}
         <div
           className="absolute inset-x-0 bottom-0 h-1/2 pointer-events-none"
-          style={{ background: "linear-gradient(0deg, rgba(20,15,10,0.42), transparent)" }}
+          style={{ background: "linear-gradient(0deg, rgba(20,15,10,0.45), transparent)" }}
         />
 
-        {/* bookmark star — top-start (touchable) */}
+        {/* save button — top-start */}
         <button
           aria-label={isSaved ? t("card.unsave") : t("card.save")}
           aria-pressed={isSaved}
@@ -91,17 +102,18 @@ function ListingCardImpl({ listing, index, onOpen, onHover, hovered }: Props) {
             e.stopPropagation();
             saved.toggle(listing.id);
           }}
-          className="absolute top-2 start-2 inline-flex items-center justify-center transition-all"
+          className="absolute top-2.5 start-2.5 inline-flex items-center justify-center transition-all"
           style={{
-            width: 28,
-            height: 28,
+            width: 32,
+            height: 32,
             borderRadius: "var(--radius-pill)",
             background: isSaved
               ? "var(--terracotta)"
-              : "color-mix(in srgb, var(--bg-raised) 70%, transparent)",
+              : "color-mix(in srgb, var(--bg-raised) 65%, transparent)",
             color: isSaved ? "var(--parchment)" : "var(--fg)",
-            border: `1px solid ${isSaved ? "var(--terracotta)" : "var(--hairline)"}`,
-            backdropFilter: "blur(4px)",
+            border: `1px solid ${isSaved ? "var(--terracotta)" : "rgba(244,236,216,0.45)"}`,
+            backdropFilter: "blur(6px)",
+            WebkitBackdropFilter: "blur(6px)",
             fontSize: 14,
             lineHeight: 1,
           }}
@@ -109,8 +121,8 @@ function ListingCardImpl({ listing, index, onOpen, onHover, hovered }: Props) {
           {isSaved ? "★" : "☆"}
         </button>
 
-        {/* badges — top-end */}
-        <div className="absolute top-2 end-2 flex flex-col items-end gap-1 pointer-events-none">
+        {/* status badges — top-end */}
+        <div className="absolute top-2.5 end-2.5 flex flex-col items-end gap-1 pointer-events-none">
           {listing.is_new === 1 && <StatusBadge kind="new" />}
           {listing.price_change && listing.price_change.to < listing.price_change.from && (
             <StatusBadge kind="price-drop" from={listing.price_change.from} to={listing.price_change.to} />
@@ -121,20 +133,32 @@ function ListingCardImpl({ listing, index, onOpen, onHover, hovered }: Props) {
           {isGone && <StatusBadge kind="gone" />}
         </div>
 
-        {/* district label — bottom-start, sits on the wash */}
+        {/* district pill — bottom-start, sits on the wash */}
         <div
-          className="absolute bottom-2 start-2 inline-flex items-center gap-1.5"
-          style={{ color: "var(--parchment)" }}
+          className="absolute bottom-2.5 start-2.5 inline-flex items-center gap-1.5"
+          style={{
+            color: "var(--parchment)",
+            background: "rgba(20,15,10,0.42)",
+            backdropFilter: "blur(6px)",
+            WebkitBackdropFilter: "blur(6px)",
+            paddingInline: 10,
+            paddingBlock: 4,
+            borderRadius: "var(--radius-pill)",
+            fontFamily: "var(--font-display)",
+            fontSize: 11.5,
+          }}
         >
           <span
             aria-hidden
-            className="inline-block w-1 h-1 rounded-full"
-            style={{ background: "var(--terracotta)", boxShadow: "0 0 0 2px rgba(244,236,216,0.25)" }}
+            className="inline-block"
+            style={{
+              width: 5,
+              height: 5,
+              borderRadius: 999,
+              background: "var(--terracotta-soft)",
+            }}
           />
-          <span
-            className="text-[12px] leading-none"
-            style={{ fontFamily: "var(--font-display)", textShadow: "0 1px 2px rgba(0,0,0,0.6)" }}
-          >
+          <span style={{ lineHeight: 1 }}>
             {listing.district.replace("حي ", "")}
           </span>
         </div>
@@ -143,7 +167,7 @@ function ListingCardImpl({ listing, index, onOpen, onHover, hovered }: Props) {
       {/* === Body ============================================================ */}
       <div
         className="flex flex-col flex-1 min-w-0"
-        style={{ padding: "10px 12px 8px" }}
+        style={{ padding: "14px 16px 12px" }}
       >
         {/* Price line — primary */}
         <div className="flex items-baseline justify-between gap-2 min-w-0">
@@ -152,8 +176,9 @@ function ListingCardImpl({ listing, index, onOpen, onHover, hovered }: Props) {
             style={{
               fontFamily: "var(--font-serif)",
               fontWeight: 600,
-              fontSize: 20,
+              fontSize: 22,
               color: "var(--fg)",
+              letterSpacing: "-0.01em",
             }}
           >
             {formatSAR(annual)}
@@ -173,7 +198,7 @@ function ListingCardImpl({ listing, index, onOpen, onHover, hovered }: Props) {
             className="tabular shrink-0"
             style={{
               fontFamily: "var(--font-mono)",
-              fontSize: 10,
+              fontSize: 11,
               color: "var(--fg-muted)",
             }}
           >
@@ -181,9 +206,9 @@ function ListingCardImpl({ listing, index, onOpen, onHover, hovered }: Props) {
           </span>
         </div>
 
-        {/* Specs row — secondary */}
+        {/* Specs row */}
         <div
-          className="tabular flex items-center mt-1.5"
+          className="tabular flex items-center mt-2"
           style={{
             fontFamily: "var(--font-mono)",
             fontSize: 11,
@@ -210,12 +235,12 @@ function ListingCardImpl({ listing, index, onOpen, onHover, hovered }: Props) {
           )}
         </div>
 
-        {/* Title — tertiary, optional */}
+        {/* Title */}
         {listing.title && (
           <p
-            className="mt-2 leading-snug line-clamp-2"
+            className="mt-2.5 leading-snug line-clamp-2"
             style={{
-              fontSize: 11,
+              fontSize: 12,
               color: "var(--fg-muted)",
               fontFamily: "var(--font-body)",
             }}
@@ -224,25 +249,29 @@ function ListingCardImpl({ listing, index, onOpen, onHover, hovered }: Props) {
           </p>
         )}
 
-        {/* Footer — flush bottom, hairline above */}
+        {/* Footer */}
         <div
-          className="mt-auto pt-2 flex items-center justify-between"
-          style={{ borderTop: "1px solid var(--hairline)", marginTop: "var(--s-2)" }}
+          className="mt-auto pt-3 flex items-center justify-between"
+          style={{
+            borderTop: "1px solid var(--hairline-soft)",
+            marginTop: "var(--s-3)",
+          }}
         >
           <Link
             href={listing.url}
             target="_blank"
             rel="noreferrer"
             onClick={(e) => e.stopPropagation()}
-            className="hover:opacity-80 transition-opacity"
+            className="inline-flex items-center gap-1 hover:opacity-80 transition-opacity"
             style={{
               color: "var(--indigo)",
               fontFamily: "var(--font-display)",
-              fontSize: 10,
+              fontSize: 11,
               fontWeight: 500,
             }}
           >
-            {t("card.aqar")} ↗
+            <span>{t("card.aqar")}</span>
+            <span style={{ fontSize: 9 }}>↗</span>
           </Link>
           <span
             className="tabular"
