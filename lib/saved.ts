@@ -5,15 +5,19 @@ import { useEffect, useSyncExternalStore } from "react";
 /**
  * Saved-listings store.
  *
- * Persists in localStorage as `radar.saved.v1` = { [listingId]: savedAtMs }.
- * Entries auto-expire 7 days after they were saved — checked on every read,
- * so stale rows can't accumulate. Survives reloads, falls back to in-memory
- * when localStorage is unavailable (private mode, server-side render).
+ * Two-layer persistence:
+ *  - localStorage (fast, synchronous; survives reloads, works offline)
+ *  - Supabase via /api/saved (durable, cross-device once auth is added)
+ *
+ * The local cache is the source of truth for synchronous UI reads (e.g.,
+ * `has(id)` called on every card render). On hook mount, we pull the
+ * server's set and merge — server overrides local so the user's
+ * cross-device state wins. Toggles write locally first (optimistic),
+ * then fire-and-forget to the API.
  */
 const STORAGE_KEY = "radar.saved.v1";
-const TTL_MS = 7 * 24 * 60 * 60 * 1000; // 7 days
 
-type SavedMap = Record<string, number>;
+type SavedMap = Record<string, number>; // id → savedAtMs
 
 function isBrowser() {
   return typeof window !== "undefined";
@@ -41,52 +45,34 @@ function writeRaw(map: SavedMap) {
   }
 }
 
-function pruneExpired(map: SavedMap, now: number): SavedMap {
-  const out: SavedMap = {};
-  let changed = false;
-  for (const [id, ts] of Object.entries(map)) {
-    if (now - ts < TTL_MS) out[id] = ts;
-    else changed = true;
-  }
-  return changed ? out : map;
-}
-
-// Stable empty reference — both the SSR fallback and the initial cache point
-// here so successive `getSnapshot` calls return ===-equal until something
-// actually changes. (React's useSyncExternalStore requires this contract.)
 const EMPTY_SNAPSHOT: SavedMap = Object.freeze({}) as SavedMap;
 
-// Subscriber list for cross-component updates without prop drilling.
 const listeners = new Set<() => void>();
 function notify() {
   listeners.forEach((l) => l());
 }
 
-// Storage events fire when *another tab* changes localStorage; we wire that up
-// so saved state syncs across tabs of the same browser.
 if (isBrowser()) {
   window.addEventListener("storage", (e) => {
-    if (e.key === STORAGE_KEY) notify();
+    if (e.key === STORAGE_KEY) {
+      invalidateSnapshot();
+      notify();
+    }
   });
 }
 
-// Cached snapshot — keyed by serialized state so successive calls return the
-// same reference unless data actually changed.
 let cachedSnapshot: SavedMap = EMPTY_SNAPSHOT;
 let cachedSerialized = "";
 function getSnapshot(): SavedMap {
   if (!isBrowser()) return EMPTY_SNAPSHOT;
   const raw = readRaw();
-  const pruned = pruneExpired(raw, Date.now());
-  if (pruned !== raw) writeRaw(pruned);
-  const serialized = JSON.stringify(pruned);
+  const serialized = JSON.stringify(raw);
   if (serialized === cachedSerialized) return cachedSnapshot;
   cachedSerialized = serialized;
-  cachedSnapshot = pruned;
+  cachedSnapshot = raw;
   return cachedSnapshot;
 }
 
-// Force the next getSnapshot to re-read from storage. Called by toggle/clear.
 function invalidateSnapshot() {
   cachedSerialized = "";
 }
@@ -100,26 +86,84 @@ function subscribe(cb: () => void) {
   return () => listeners.delete(cb);
 }
 
+// — server sync ——————————————————————————————————————————————
+
+let didInitialSync = false;
+async function syncFromServer(): Promise<void> {
+  if (!isBrowser() || didInitialSync) return;
+  didInitialSync = true;
+  try {
+    const r = await fetch("/api/saved", { cache: "no-store" });
+    if (!r.ok) return;
+    const { ids } = (await r.json()) as { ids: string[] };
+    const local = readRaw();
+    const merged: SavedMap = {};
+    const now = Date.now();
+    // Server wins for membership: only ids returned by the server are kept.
+    // For ids the server has, preserve the local timestamp if known.
+    for (const id of ids) merged[id] = local[id] ?? now;
+    // Push any local-only ids back up to the server (one-time reconciliation).
+    const localOnly = Object.keys(local).filter((id) => !(id in merged));
+    for (const id of localOnly) {
+      merged[id] = local[id]; // keep them locally too
+      void fetch("/api/saved", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id }),
+      });
+    }
+    writeRaw(merged);
+    invalidateSnapshot();
+    notify();
+  } catch {
+    // network down — local state continues to work
+  }
+}
+
+async function pushAdd(id: string): Promise<void> {
+  try {
+    await fetch("/api/saved", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ id }),
+    });
+  } catch {
+    /* offline — will re-sync on next mount */
+  }
+}
+
+async function pushRemove(id: string): Promise<void> {
+  try {
+    await fetch(`/api/saved?id=${encodeURIComponent(id)}`, { method: "DELETE" });
+  } catch {
+    /* offline — will re-sync on next mount */
+  }
+}
+
+// — public hook ——————————————————————————————————————————————
+
 export function useSavedListings() {
   const map = useSyncExternalStore(subscribe, getSnapshot, getServerSnapshot);
 
-  // Periodic re-prune so the count badge ticks down as TTLs expire even if
-  // nothing else changes.
   useEffect(() => {
-    const i = setInterval(() => {
-      invalidateSnapshot();
-      notify();
-    }, 60_000);
-    return () => clearInterval(i);
+    void syncFromServer();
   }, []);
 
   function toggle(id: string) {
     const cur = readRaw();
-    if (cur[id]) delete cur[id];
-    else cur[id] = Date.now();
-    writeRaw(cur);
-    invalidateSnapshot();
-    notify();
+    if (cur[id]) {
+      delete cur[id];
+      writeRaw(cur);
+      invalidateSnapshot();
+      notify();
+      void pushRemove(id);
+    } else {
+      cur[id] = Date.now();
+      writeRaw(cur);
+      invalidateSnapshot();
+      notify();
+      void pushAdd(id);
+    }
   }
 
   function has(id: string) {
@@ -127,9 +171,11 @@ export function useSavedListings() {
   }
 
   function clear() {
+    const ids = Object.keys(readRaw());
     writeRaw({});
     invalidateSnapshot();
     notify();
+    for (const id of ids) void pushRemove(id);
   }
 
   const ids = Object.keys(map);

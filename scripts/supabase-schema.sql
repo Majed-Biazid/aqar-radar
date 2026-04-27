@@ -17,6 +17,8 @@ create table if not exists public.listings (
   living_rooms     integer,
   age_label        text,
   is_new           integer default 0,
+  is_new_reason    text,            -- which regex pattern matched (audit/debug); null = not new
+
   description      text,
   image_url        text,
   photos           jsonb   default '[]'::jsonb,
@@ -50,10 +52,26 @@ create table if not exists public.refresh_runs (
   price_change_count  integer default 0
 );
 
--- RLS: enable on all three tables. No policies = anon/authenticated get nothing.
+-- ============================================================
+-- saved_listings — user favorites. Single-user app for now, so no user_id;
+-- if multi-user support is added later, add a user_id column + composite PK.
+-- ============================================================
+create table if not exists public.saved_listings (
+  listing_id  text primary key references public.listings(id) on delete cascade,
+  saved_at    timestamptz not null default now(),
+  note        text
+);
+
+create index if not exists idx_saved_listings_at on public.saved_listings(saved_at desc);
+
+alter table public.saved_listings enable row level security;
+
+-- ============================================================
+-- RLS: enable on all four tables. No policies = anon/authenticated get nothing.
 -- Server-side (Next.js API + Python scraper) connects as service_role / postgres
 -- and bypasses RLS. The browser never talks to Supabase directly — it goes
 -- through Next.js API routes only.
+-- ============================================================
 alter table public.listings      enable row level security;
 alter table public.price_history enable row level security;
 alter table public.refresh_runs  enable row level security;
