@@ -8,10 +8,10 @@ create table if not exists public.listings (
   city             text,
   district         text not null,
   title            text,
-  price_annual_sar integer,
-  price_raw        integer,
+  price_annual_sar bigint,
+  price_raw        bigint,
   price_period     text,
-  area_sqm         integer,
+  area_sqm         bigint,
   bedrooms         integer,
   bathrooms        integer,
   living_rooms     integer,
@@ -34,7 +34,7 @@ create index if not exists idx_listings_price    on public.listings(price_annual
 create table if not exists public.price_history (
   listing_id       text not null references public.listings(id) on delete cascade,
   seen_at          timestamptz not null,
-  price_annual_sar integer not null,
+  price_annual_sar bigint not null,
   primary key (listing_id, seen_at)
 );
 
