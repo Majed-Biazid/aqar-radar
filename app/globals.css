@@ -1,26 +1,327 @@
 @import "tailwindcss";
 
+/* ===========================================================
+   الديوان — warm desert editorial palette
+   =========================================================== */
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --ink: #1a1613;
+  --parchment: #f4ecd8;
+  --sand: #e8dcc0;
+  --sand-hover: #dfd2b0;
+  --stone: #9b8b6f;
+  --stone-faint: #c8b99c;
+  --terracotta: #c8553d;
+  --terracotta-dim: #a04431;
+  --sage: #7a9471;
+  --amber: #d89b3c;
+  --gunmetal: #4a4e57;
+  --indigo: #2b3a5c;
+
+  --bg: var(--parchment);
+  --bg-raised: #faf3e0;
+  --surface: var(--sand);
+  --surface-hover: var(--sand-hover);
+  --fg: var(--ink);
+  --fg-muted: var(--stone);
+  --hairline: var(--stone-faint);
+
+  /* === Field Ledger design tokens =========================================
+     Spacing grid: 4px rhythm. Use these in inline style as `gap: var(--s-3)`.
+     Typography: locked label sizes & tracking — never use arbitrary values. */
+  --s-1: 4px;
+  --s-2: 8px;
+  --s-3: 12px;
+  --s-4: 16px;
+  --s-5: 20px;
+  --s-6: 24px;
+  --s-8: 32px;
+  --s-10: 40px;
+  --s-12: 48px;
+
+  /* Label scale (mono, tracking-locked) */
+  --label-xs: 9px;     /* micro labels (counts, IDs) */
+  --label-sm: 10px;    /* standard small caps */
+  --label-md: 11px;    /* prominent labels */
+  --label-lg: 12px;    /* button/CTA labels */
+
+  /* Tracking — only three values, ever */
+  --track-tight: 0.12em;     /* status badges, tight all-caps */
+  --track-std: 0.22em;       /* standard small caps */
+  --track-wide: 0.32em;      /* masthead, register ID */
+
+  --radius-tile: 4px;        /* cards, panel sections */
+  --radius-chip: 3px;        /* small buttons, segmented controls */
+  --radius-pill: 999px;      /* district chips, status badges */
+
+  /* Single shadow used app-wide for hover lift on cards */
+  --shadow-lift: 0 6px 16px -6px rgba(200, 85, 61, 0.28);
+  --shadow-drawer: 0 24px 48px -12px rgba(20, 15, 10, 0.35);
+
+  /* Ease curves */
+  --ease-out: cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+html[data-theme="dark"] {
+  --bg: #120e0b;
+  --bg-raised: #1a1613;
+  --surface: #23201a;
+  --surface-hover: #2d2922;
+  --fg: #f4ecd8;
+  --fg-muted: #a99876;
+  --hairline: #3a342a;
+  --terracotta: #e07456;
+  --sage: #9ab490;
+  --amber: #e8b564;
+  --indigo: #6b82b5;
 }
 
 @theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+  --color-bg: var(--bg);
+  --color-bg-raised: var(--bg-raised);
+  --color-surface: var(--surface);
+  --color-surface-hover: var(--surface-hover);
+  --color-fg: var(--fg);
+  --color-fg-muted: var(--fg-muted);
+  --color-hairline: var(--hairline);
+  --color-ink: var(--ink);
+  --color-parchment: var(--parchment);
+  --color-sand: var(--sand);
+  --color-stone: var(--stone);
+  --color-terracotta: var(--terracotta);
+  --color-sage: var(--sage);
+  --color-amber: var(--amber);
+  --color-gunmetal: var(--gunmetal);
+  --color-indigo: var(--indigo);
+
+  --font-display: var(--font-readex), var(--font-fraunces), system-ui, sans-serif;
+  --font-body: var(--font-kufi), var(--font-readex), system-ui, sans-serif;
+  --font-serif: var(--font-fraunces), Georgia, serif;
+  --font-mono: var(--font-jetbrains), ui-monospace, monospace;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+* {
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+html,
+body {
+  background: var(--bg);
+  color: var(--fg);
+  font-family: var(--font-body);
 }
 
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  background-image:
+    radial-gradient(ellipse 80% 60% at 20% 0%, rgba(200, 85, 61, 0.04), transparent 60%),
+    radial-gradient(ellipse 60% 40% at 100% 100%, rgba(43, 58, 92, 0.05), transparent 60%);
+  background-attachment: fixed;
+}
+
+html[data-theme="dark"] body {
+  background-image:
+    radial-gradient(ellipse 80% 60% at 20% 0%, rgba(224, 116, 86, 0.08), transparent 60%),
+    radial-gradient(ellipse 60% 40% at 100% 100%, rgba(107, 130, 181, 0.08), transparent 60%);
+}
+
+.tabular {
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: "tnum";
+}
+
+/* Hairline borders — lighter than default */
+.border-hairline {
+  border-color: var(--hairline);
+}
+
+/* The decorative rule used in headers and between stats */
+.rule {
+  display: inline-block;
+  width: 12px;
+  height: 1px;
+  background: var(--stone);
+  vertical-align: middle;
+  margin: 0 8px;
+  opacity: 0.5;
+}
+
+/* ============ Field Ledger label primitives ============
+   Use .label-* + .track-* combinations to enforce the type system. */
+.label {
+  font-family: var(--font-mono);
+  text-transform: uppercase;
+  color: var(--stone);
+}
+.label-xs { font-size: var(--label-xs); letter-spacing: var(--track-std); }
+.label-sm { font-size: var(--label-sm); letter-spacing: var(--track-std); }
+.label-md { font-size: var(--label-md); letter-spacing: var(--track-std); }
+.label-mast { font-size: var(--label-sm); letter-spacing: var(--track-wide); }
+
+/* Editorial divider — a hairline with optional terracotta tick at the end.
+   Use as <span className="ledger-rule" /> between metadata items.        */
+.ledger-rule {
+  display: inline-flex;
+  align-items: center;
+  width: 18px;
+  height: 1px;
+  background: var(--hairline);
+  margin: 0 10px;
+}
+
+/* Subtle parchment grain for raised surfaces — paper texture, not noise */
+.parchment-grain {
+  background-image:
+    radial-gradient(circle at 20% 30%, rgba(155, 139, 111, 0.04) 1px, transparent 2px),
+    radial-gradient(circle at 70% 80%, rgba(155, 139, 111, 0.04) 1px, transparent 2px),
+    radial-gradient(circle at 40% 70%, rgba(155, 139, 111, 0.03) 1px, transparent 2px);
+  background-size: 64px 64px, 96px 96px, 48px 48px;
+  background-position: 0 0, 32px 16px, 16px 48px;
+}
+
+/* Leaflet container styling */
+.leaflet-container {
+  background: var(--bg-raised) !important;
+  font-family: var(--font-body) !important;
+  border-radius: 6px;
+}
+
+.leaflet-tile-pane {
+  filter: saturate(0.75) contrast(0.9);
+}
+
+html[data-theme="dark"] .leaflet-tile-pane {
+  filter: invert(0.92) hue-rotate(180deg) saturate(0.4) brightness(0.95);
+}
+
+.leaflet-control-attribution {
+  background: rgba(232, 220, 192, 0.85) !important;
+  color: var(--ink) !important;
+  font-size: 10px !important;
+}
+
+/* Custom map pin (terracotta dot inside a cream ring) */
+.pin {
+  width: 14px;
+  height: 14px;
+  border-radius: 999px;
+  background: var(--terracotta);
+  box-shadow: 0 0 0 4px var(--bg-raised), 0 1px 3px rgba(0, 0, 0, 0.35);
+  transition: transform 160ms ease, background-color 160ms ease;
+}
+
+.pin.pin-new {
+  background: var(--terracotta);
+  animation: pin-pulse 2.4s ease-out infinite;
+}
+
+.pin.pin-price-drop {
+  background: var(--sage);
+}
+
+.pin.pin-gone {
+  background: var(--gunmetal);
+  opacity: 0.45;
+}
+
+.pin.pin-hover {
+  transform: scale(1.55);
+  background: var(--indigo);
+  z-index: 500;
+}
+
+@keyframes pin-pulse {
+  0%,
+  100% {
+    box-shadow: 0 0 0 4px var(--bg-raised), 0 0 0 0 rgba(200, 85, 61, 0.45);
+  }
+  50% {
+    box-shadow: 0 0 0 4px var(--bg-raised), 0 0 0 10px rgba(200, 85, 61, 0);
+  }
+}
+
+/* Scrollbar chrome — stays in the palette */
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: var(--hairline);
+  border-radius: 10px;
+  border: 2px solid var(--bg);
+}
+::-webkit-scrollbar-thumb:hover {
+  background: var(--stone);
+}
+
+/* Stagger animation utility used on the listings grid */
+@keyframes rise {
+  from {
+    opacity: 0;
+    transform: translateY(14px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+.rise {
+  animation: rise 500ms var(--ease-out) both;
+}
+
+/* Generic gentle pulse for loading dots, refresh indicators */
+@keyframes pulse {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.45; transform: scale(0.85); }
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+/* Touch behavior — disable iOS double-tap zoom delay and use system inertia */
+html {
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+}
+@supports (padding: env(safe-area-inset-top)) {
+  body {
+    padding-top: env(safe-area-inset-top);
+  }
+}
+
+/* Mobile-first tap target floor — only enforced on coarse pointers (touch). */
+@media (pointer: coarse) {
+  button,
+  [role="button"],
+  [role="checkbox"],
+  [role="switch"],
+  [role="tab"],
+  [role="option"],
+  input[type="checkbox"],
+  input[type="search"],
+  input[type="number"],
+  select,
+  a[href] {
+    min-height: 36px;
+  }
+  /* Pure icon-only chips & corner brackets shouldn't inflate. */
+  .pin,
+  .rule {
+    min-height: 0;
+  }
+}
+
+/* Diagonal stripe used on GONE cards */
+.gone-pattern {
+  background-image: repeating-linear-gradient(
+    -45deg,
+    transparent,
+    transparent 8px,
+    rgba(74, 78, 87, 0.1) 8px,
+    rgba(74, 78, 87, 0.1) 10px
+  );
 }
