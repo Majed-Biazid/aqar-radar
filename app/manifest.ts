@@ -2,10 +2,10 @@ import type { MetadataRoute } from "next";
 
 export default function manifest(): MetadataRoute.Manifest {
   return {
-    name: "Radar · رادار إيجارات الشرقية",
-    short_name: "Radar",
+    name: "رادار · إيجارات الشرقية",
+    short_name: "رادار",
     description:
-      "رادار إيجارات الدمام والخبر — متابعة العروض النشطة وانخفاضات الأسعار.",
+      "تتبّع إيجارات الدمام والخبر والظهران. عروض جديدة، أسعار متغيّرة، خريطة حية.",
     start_url: "/",
     scope: "/",
     display: "standalone",

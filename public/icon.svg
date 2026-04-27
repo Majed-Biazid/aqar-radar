@@ -1,48 +1,64 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
   <defs>
-    <radialGradient id="g" cx="30%" cy="20%" r="90%">
-      <stop offset="0%" stop-color="#d96650"/>
-      <stop offset="100%" stop-color="#a04431"/>
+    <radialGradient id="bg" cx="32%" cy="22%" r="92%">
+      <stop offset="0%" stop-color="#e8745c"/>
+      <stop offset="55%" stop-color="#c8553d"/>
+      <stop offset="100%" stop-color="#8e3a28"/>
     </radialGradient>
     <linearGradient id="sweep" x1="50%" y1="50%" x2="100%" y2="0%">
-      <stop offset="0%" stop-color="#f4ecd8" stop-opacity="0.95"/>
+      <stop offset="0%" stop-color="#f4ecd8" stop-opacity="0.85"/>
       <stop offset="100%" stop-color="#f4ecd8" stop-opacity="0"/>
     </linearGradient>
+    <radialGradient id="centerGlow" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" stop-color="#f4ecd8" stop-opacity="0.55"/>
+      <stop offset="100%" stop-color="#f4ecd8" stop-opacity="0"/>
+    </radialGradient>
   </defs>
-  <rect width="512" height="512" rx="96" fill="url(#g)"/>
 
-  <!-- editorial corner brackets -->
-  <g stroke="#f4ecd8" stroke-width="6" fill="none" opacity="0.55">
-    <path d="M48 96 V48 H96"/>
-    <path d="M464 96 V48 H416"/>
-    <path d="M48 416 V464 H96"/>
-    <path d="M464 416 V464 H416"/>
+  <!-- rounded rectangle backplate -->
+  <rect width="512" height="512" rx="120" fill="url(#bg)"/>
+
+  <!-- soft inner glow at the radar origin -->
+  <circle cx="256" cy="256" r="140" fill="url(#centerGlow)"/>
+
+  <!-- concentric rings — three sizes, refined opacities -->
+  <g fill="none" stroke="#f4ecd8" stroke-linecap="round">
+    <circle cx="256" cy="256" r="60"  stroke-width="2.5" opacity="0.30"/>
+    <circle cx="256" cy="256" r="120" stroke-width="2.5" opacity="0.45"/>
+    <circle cx="256" cy="256" r="180" stroke-width="2.5" opacity="0.30"/>
   </g>
 
-  <!-- radar concentric rings -->
-  <g fill="none" stroke="#f4ecd8" stroke-width="3" opacity="0.42">
-    <circle cx="256" cy="256" r="56"/>
-    <circle cx="256" cy="256" r="112"/>
-    <circle cx="256" cy="256" r="168"/>
+  <!-- crosshair — ultra subtle -->
+  <g stroke="#f4ecd8" stroke-width="1.5" opacity="0.18" stroke-linecap="round">
+    <line x1="78"  y1="256" x2="172" y2="256"/>
+    <line x1="340" y1="256" x2="434" y2="256"/>
+    <line x1="256" y1="78"  x2="256" y2="172"/>
+    <line x1="256" y1="340" x2="256" y2="434"/>
   </g>
 
-  <!-- crosshair -->
-  <g stroke="#f4ecd8" stroke-width="2" opacity="0.32">
-    <line x1="80" y1="256" x2="432" y2="256"/>
-    <line x1="256" y1="80" x2="256" y2="432"/>
-  </g>
-
-  <!-- radar sweep wedge — 60° fan from center -->
+  <!-- radar sweep wedge — 50° fan from center -->
   <path
-    d="M256 256 L 256 88 A 168 168 0 0 1 401.5 172 Z"
+    d="M256 256 L 256 76 A 180 180 0 0 1 388 142 Z"
     fill="url(#sweep)"
     opacity="0.85"
   />
 
-  <!-- center pin (terracotta-on-parchment dot) -->
-  <circle cx="256" cy="256" r="10" fill="#f4ecd8"/>
-  <circle cx="256" cy="256" r="4" fill="#a04431"/>
+  <!-- a caught listing — small house silhouette at the ping point -->
+  <g transform="translate(338, 158)">
+    <!-- soft halo ring -->
+    <circle cx="0" cy="0" r="22" fill="#f4ecd8" opacity="0.18"/>
+    <circle cx="0" cy="0" r="14" fill="#f4ecd8" opacity="0.95"/>
+    <!-- house glyph in terracotta on the parchment dot -->
+    <path
+      d="M -7 1 L 0 -6 L 7 1 L 7 7 L -7 7 Z"
+      fill="#a04431"
+      stroke="#a04431"
+      stroke-width="1.2"
+      stroke-linejoin="round"
+    />
+  </g>
 
-  <!-- a single ping dot (an apartment we caught) -->
-  <circle cx="338" cy="180" r="8" fill="#f4ecd8"/>
+  <!-- center origin pin -->
+  <circle cx="256" cy="256" r="14" fill="#f4ecd8" opacity="0.95"/>
+  <circle cx="256" cy="256" r="6"  fill="#a04431"/>
 </svg>

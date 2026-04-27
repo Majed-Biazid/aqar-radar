@@ -8,7 +8,7 @@
 //
 // Bump CACHE_VERSION when this file changes so old caches get evicted.
 
-const CACHE_VERSION = "diwan-v2";
+const CACHE_VERSION = "radar-v3";
 const APP_SHELL = `${CACHE_VERSION}-shell`;
 const API_CACHE = `${CACHE_VERSION}-api`;
 const IMG_CACHE = `${CACHE_VERSION}-img`;

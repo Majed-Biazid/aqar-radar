@@ -32,12 +32,12 @@ const jetbrains = JetBrains_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Radar · رادار إيجارات الشرقية",
-  description: "رادار إيجارات الدمام والخبر — متابعة العروض النشطة وانخفاضات الأسعار.",
-  applicationName: "Radar",
+  title: "رادار · إيجارات الشرقية",
+  description: "تتبّع إيجارات الدمام والخبر والظهران — عروض جديدة، أسعار متغيّرة، خريطة حية.",
+  applicationName: "رادار",
   appleWebApp: {
     capable: true,
-    title: "Radar",
+    title: "رادار",
     statusBarStyle: "default",
   },
   formatDetection: { telephone: false, date: false, address: false, email: false },

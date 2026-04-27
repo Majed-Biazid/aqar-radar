@@ -10,20 +10,77 @@ export default function AppleIcon() {
         style={{
           width: "100%",
           height: "100%",
+          position: "relative",
           display: "flex",
           alignItems: "center",
           justifyContent: "center",
           background:
-            "radial-gradient(circle at 30% 20%, #d96650 0%, #a04431 100%)",
-          color: "#f4ecd8",
-          fontSize: 92,
-          fontStyle: "italic",
-          fontWeight: 700,
-          letterSpacing: -2,
-          fontFamily: "serif",
+            "radial-gradient(circle at 32% 22%, #e8745c 0%, #c8553d 55%, #8e3a28 100%)",
         }}
       >
-        R
+        {/* concentric rings */}
+        <div
+          style={{
+            position: "absolute",
+            width: 130,
+            height: 130,
+            borderRadius: 999,
+            border: "2px solid rgba(244,236,216,0.30)",
+          }}
+        />
+        <div
+          style={{
+            position: "absolute",
+            width: 86,
+            height: 86,
+            borderRadius: 999,
+            border: "2px solid rgba(244,236,216,0.45)",
+          }}
+        />
+        <div
+          style={{
+            position: "absolute",
+            width: 44,
+            height: 44,
+            borderRadius: 999,
+            border: "2px solid rgba(244,236,216,0.55)",
+          }}
+        />
+        {/* center dot */}
+        <div
+          style={{
+            position: "absolute",
+            width: 14,
+            height: 14,
+            borderRadius: 999,
+            background: "#f4ecd8",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+          }}
+        >
+          <div
+            style={{
+              width: 6,
+              height: 6,
+              borderRadius: 999,
+              background: "#a04431",
+            }}
+          />
+        </div>
+        {/* ping dot at upper-right */}
+        <div
+          style={{
+            position: "absolute",
+            top: 42,
+            right: 50,
+            width: 14,
+            height: 14,
+            borderRadius: 999,
+            background: "#f4ecd8",
+            boxShadow: "0 0 0 6px rgba(244,236,216,0.18)",
+          }}
+        />
       </div>
     ),
     size
