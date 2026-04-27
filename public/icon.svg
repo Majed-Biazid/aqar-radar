@@ -1,0 +1,48 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <defs>
+    <radialGradient id="g" cx="30%" cy="20%" r="90%">
+      <stop offset="0%" stop-color="#d96650"/>
+      <stop offset="100%" stop-color="#a04431"/>
+    </radialGradient>
+    <linearGradient id="sweep" x1="50%" y1="50%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#f4ecd8" stop-opacity="0.95"/>
+      <stop offset="100%" stop-color="#f4ecd8" stop-opacity="0"/>
+    </linearGradient>
+  </defs>
+  <rect width="512" height="512" rx="96" fill="url(#g)"/>
+
+  <!-- editorial corner brackets -->
+  <g stroke="#f4ecd8" stroke-width="6" fill="none" opacity="0.55">
+    <path d="M48 96 V48 H96"/>
+    <path d="M464 96 V48 H416"/>
+    <path d="M48 416 V464 H96"/>
+    <path d="M464 416 V464 H416"/>
+  </g>
+
+  <!-- radar concentric rings -->
+  <g fill="none" stroke="#f4ecd8" stroke-width="3" opacity="0.42">
+    <circle cx="256" cy="256" r="56"/>
+    <circle cx="256" cy="256" r="112"/>
+    <circle cx="256" cy="256" r="168"/>
+  </g>
+
+  <!-- crosshair -->
+  <g stroke="#f4ecd8" stroke-width="2" opacity="0.32">
+    <line x1="80" y1="256" x2="432" y2="256"/>
+    <line x1="256" y1="80" x2="256" y2="432"/>
+  </g>
+
+  <!-- radar sweep wedge — 60° fan from center -->
+  <path
+    d="M256 256 L 256 88 A 168 168 0 0 1 401.5 172 Z"
+    fill="url(#sweep)"
+    opacity="0.85"
+  />
+
+  <!-- center pin (terracotta-on-parchment dot) -->
+  <circle cx="256" cy="256" r="10" fill="#f4ecd8"/>
+  <circle cx="256" cy="256" r="4" fill="#a04431"/>
+
+  <!-- a single ping dot (an apartment we caught) -->
+  <circle cx="338" cy="180" r="8" fill="#f4ecd8"/>
+</svg>
