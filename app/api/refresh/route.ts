@@ -4,7 +4,11 @@ import path from "node:path";
 import { DISTRICTS } from "@/lib/districts";
 
 export const dynamic = "force-dynamic";
-export const maxDuration = 900; // 15 min cap — detail-page photo fetch is slow
+// Vercel Hobby caps Serverless Functions at 300s. Pro is 900s,
+// Enterprise 3600s. The scrape can run longer than 5 min on a wide
+// catch-all — for full coverage rely on the GitHub Actions cron
+// (no time limit) instead of this endpoint when on Hobby.
+export const maxDuration = 300;
 
 /**
  * POST /api/refresh — kicks off the Python scraper. Two ways to call it:
