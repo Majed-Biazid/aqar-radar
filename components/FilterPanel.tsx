@@ -234,6 +234,9 @@ function PinFilledGlyph() {
    Sort + age are intentionally OMITTED — they live in QuickControls
    above. Inline mode only adds cities, price, and gone toggle so the
    card stays compact.
+
+   Mobile-first: single column stack so cities and price each get the
+   full width. md+ splits into a 2-column layout.
    ============================================================ */
 function InlineFilterBody({
   filters,
@@ -244,12 +247,23 @@ function InlineFilterBody({
   districtCounts: Record<string, number>;
   onChange: (f: Filters) => void;
 }) {
+  const [isWide, setIsWide] = useState(false);
+  useEffect(() => {
+    const mq = window.matchMedia("(min-width: 768px)");
+    const sync = () => setIsWide(mq.matches);
+    sync();
+    mq.addEventListener("change", sync);
+    return () => mq.removeEventListener("change", sync);
+  }, []);
+
   return (
     <div
       className="grid"
       style={{
-        gap: "var(--s-4)",
-        gridTemplateColumns: "minmax(0, 1.5fr) minmax(0, 1fr)",
+        gap: isWide ? "var(--s-4)" : "var(--s-5)",
+        gridTemplateColumns: isWide
+          ? "minmax(0, 1.5fr) minmax(0, 1fr)"
+          : "minmax(0, 1fr)",
       }}
     >
       <div className="flex flex-col" style={{ gap: "var(--s-3)" }}>
